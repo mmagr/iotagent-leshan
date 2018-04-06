@@ -1,6 +1,7 @@
 package org.cpqd.iotagent;
 
 
+import br.com.dojot.kafka.Manager;
 import com.google.gson.JsonElement;
 import com.google.gson.*;
 import com.mashape.unirest.http.*;
@@ -8,7 +9,7 @@ import com.mashape.unirest.http.*;
 import java.net.HttpURLConnection;
 import java.util.*;
 
-import org.cpqd.iotagent.kafka.KafkaHandler;
+import org.apache.log4j.Logger;
 import org.eclipse.leshan.core.model.LwM2mModel;
 import org.eclipse.leshan.core.model.ObjectLoader;
 import org.eclipse.leshan.core.model.ObjectModel;
@@ -33,6 +34,7 @@ import org.json.JSONObject;
 // TODO(jsiloto) Add decent logging system
 
 public class LwM2mAgent implements Runnable {
+    private Logger mLogger = Logger.getLogger(LwM2mAgent.class);
 
     private String imageManagerUrl;
     private ImageDownloader imageDownloader;
@@ -44,15 +46,14 @@ public class LwM2mAgent implements Runnable {
 
     private static HttpURLConnection con;
     private final static String[] modelPaths = new String[]{"5000.xml"};
-    private KafkaHandler kafkaHandler;
+    private Manager mIotaManager;
 
 
     // *********** Instance Initialization *************** //
-    LwM2mAgent(KafkaHandler kafkaHandler, String deviceManagerUrl, String imageManagerUrl) {
+    LwM2mAgent(String deviceManagerUrl, String imageManagerUrl) {
         this.imageManagerUrl = imageManagerUrl;
         this.gson = createGson();
-        this.kafkaHandler = kafkaHandler;
-
+        this.mIotaManager = new Manager();
 
         // Define model provider
         List<ObjectModel> models = ObjectLoader.loadDefault();
@@ -64,6 +65,12 @@ public class LwM2mAgent implements Runnable {
         deviceManager = new DeviceManager(deviceManagerUrl, dynamDinamicModelProvider);
     }
 
+    public void configureCallbacks() {
+        this.mIotaManager.addCallback("create", this::on_create);
+        this.mIotaManager.addCallback("update", this::on_update);
+        this.mIotaManager.addCallback("remove", this::on_remove);
+        this.mIotaManager.addCallback("actuate", this::on_actuate);
+    }
 
     private static Gson createGson() {
         GsonBuilder gsonBuilder = new GsonBuilder();
@@ -86,6 +93,7 @@ public class LwM2mAgent implements Runnable {
     }
 
     // ********* Methods ****************** //
+
     private void registerNewDevice(Registration registration) {
 
         //Get ID
@@ -93,7 +101,7 @@ public class LwM2mAgent implements Runnable {
         // Check device manager if device exists, if not drop
         String DeviceModel = requestHandler.ReadResource(registration, 3, 0, 1);
         String SerialNumber = requestHandler.ReadResource(registration, 3, 0, 2);
-        System.out.println(DeviceModel + " / " + SerialNumber);
+        mLogger.debug(DeviceModel + " / " + SerialNumber);
         String Lwm2mId = registration.getId();
         JsonElement deviceJson = deviceManager.GetDeviceFromDeviceManager("admin", DeviceModel, SerialNumber);
         Device device = new Device(deviceJson);
@@ -109,24 +117,26 @@ public class LwM2mAgent implements Runnable {
         }
 
         // TODO(jsiloto): This should go into a loggin system
-        System.out.println("new device: " + registration.getEndpoint());
+        mLogger.debug("new device: " + registration.getEndpoint());
         for (int i = 0; i < registration.getObjectLinks().length; i++) {
-            System.out.println(registration.getObjectLinks()[i]);
+            mLogger.debug(registration.getObjectLinks()[i]);
         }
     }
 
 
     // *********** Run Server *************** //
-    public String create(String message) {
-        JsonElement o = new JsonParser().parse(message);
+    private Integer on_create(JSONObject message) {
+        mLogger.debug("on_create: " + message.toString());
+        JsonElement o = new JsonParser().parse(message.toString());
         Device device = new Device(o);
         deviceManager.RegisterModel(device);
-        return "OK\n";
+        return 0;
     }
 
 
-    public String update(String message) {
-        JsonElement o = new JsonParser().parse(message);
+    private Integer on_update(JSONObject message) {
+        mLogger.debug("on_update: " + message.toString());
+        JsonElement o = new JsonParser().parse(message.toString());
         Device device = new Device(o);
         deviceManager.RegisterModel(device);
 
@@ -134,11 +144,10 @@ public class LwM2mAgent implements Runnable {
         String id = device.deviceId;
         Registration registration = deviceManager.getDeviceRegistration(id);
         if (registration == null) {
-            return "NOK\n";
+            return -1;
         }
 
-        System.out.println(registration);
-
+        mLogger.debug(registration);
 
         // Get device label and new FW Version
         String newFwVersion = device.getStaticValue("fw_version");
@@ -153,17 +162,22 @@ public class LwM2mAgent implements Runnable {
             requestHandler.WriteResource(registration, 5, 0, 1, fileUrl);
         }
 
-        return "OK\n";
+        return 0;
     }
 
+    private Integer on_remove(JSONObject message) {
+        mLogger.debug("on_remove: " + message.toString());
+        return 0;
+    }
 
-    public String actuate(String message) {
+    private Integer on_actuate(JSONObject message) {
+        mLogger.debug("on_actuate: " + message.toString());
 
-        message = "{'data': {'attrs': {'luminosity': 10.6}, 'id': 'f9b1'},\n" +
+        String message_tmp = "{'data': {'attrs': {'luminosity': 10.6}, 'id': 'f9b1'},\n" +
                 " 'event': 'configure',\n" +
                 " 'meta': {'service': 'admin'}}";
 
-        JsonNode act = new JsonNode(message);
+        JsonNode act = new JsonNode(message_tmp);
         // TODO(jsiloto) use only Gson instead of org.json
         JSONObject data = act.getObject().getJSONObject("data");
         String id = data.getString("id");
@@ -171,7 +185,6 @@ public class LwM2mAgent implements Runnable {
 
         LwM2mModel model = modelProvider.getObjectModel(registration);
         Collection<ObjectModel> models = model.getObjectModels();
-
 
         data = data.getJSONObject("attrs");
         Iterator<?> keys = data.keys();
@@ -190,12 +203,12 @@ public class LwM2mAgent implements Runnable {
 
             } catch (Exception e) {
                 e.printStackTrace();
-                System.out.println(e);
+                mLogger.error(e);
             }
 
         }
 
-        return "OK\n";
+        return 0;
 
     }
 
@@ -214,7 +227,7 @@ public class LwM2mAgent implements Runnable {
 
         public void unregistered(Registration registration, Collection<Observation> observations, boolean expired,
                                  Registration newReg) {
-            System.out.println("device left: " + registration.getEndpoint());
+            mLogger.debug("device left: " + registration.getEndpoint());
             deviceManager.DeregisterDevice(registration.getId());
         }
     };
@@ -227,17 +240,17 @@ public class LwM2mAgent implements Runnable {
         @Override
         public void onResponse(Observation observation, Registration registration, ObserveResponse response) {
             JsonElement element = gson.toJsonTree(response.getContent());
-            System.out.println("Received notification from [" + observation.getPath() + "] containing value:" + element);
+            mLogger.debug("Received notification from [" + observation.getPath() + "] containing value:" + element);
             JsonObject attrs = new JsonObject();
             String label = deviceManager.getLabelFromPath(observation.getPath().toString());
             attrs.add(label, element.getAsJsonObject().get("value"));
             String deviceId = deviceManager.getDeviceId(observation.getRegistrationId());
-            kafkaHandler.UpdateAttr("admin", deviceId, attrs);
+            mIotaManager.updateAttrs(deviceId, "admin", new JSONObject(attrs.toString()), null);
         }
 
         @Override
         public void onError(Observation observation, Registration registration, Exception error) {
-            System.out.println("Unable to handle notification of" + observation.getRegistrationId().toString() + ": " + observation.getPath());
+            mLogger.error("Unable to handle notification of" + observation.getRegistrationId().toString() + ": " + observation.getPath());
         }
 
         @Override
@@ -259,7 +272,6 @@ public class LwM2mAgent implements Runnable {
             // Define model provider
             builder.setObjectModelProvider(modelProvider);
 
-
             // Start Server
             server = builder.build();
             server.start();
@@ -273,7 +285,7 @@ public class LwM2mAgent implements Runnable {
 
         } catch (Exception e) {
             e.printStackTrace();
-            System.out.println(e);
+            mLogger.error(e);
         }
     }
 

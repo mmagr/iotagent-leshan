@@ -7,4 +7,4 @@ ADD . /usr/src/app
 
 RUN ["mvn", "install"]
 
-CMD ["java", "-jar", "target/iotagent-0.1.0-SNAPSHOT-jar-with-dependencies.jar"]
+CMD ["java", "-jar", "target/iotagent-leshan-1.0-SNAPSHOT-jar-with-dependencies.jar"]

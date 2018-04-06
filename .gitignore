@@ -1,7 +1,8 @@
 target/
 fw/
-iotagent.iml
+*.iml
 *.pyc
+.idea*
 
 
 

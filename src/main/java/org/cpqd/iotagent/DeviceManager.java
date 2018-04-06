@@ -9,18 +9,17 @@ import com.mashape.unirest.http.Unirest;
 import org.eclipse.leshan.core.model.LwM2mModel;
 import org.eclipse.leshan.core.model.ObjectModel;
 import org.eclipse.leshan.core.model.ResourceModel;
+import org.apache.log4j.Logger;
 import org.eclipse.leshan.server.registration.Registration;
 import org.json.JSONArray;
 import org.json.JSONObject;
 
-
-import java.util.*;
-
-/**
- * This class is responsible for managing any data related to the device-manager microservice
- */
+import java.util.HashMap;
+import java.util.LinkedList;
+import java.util.Map;
 
 public class DeviceManager {
+    private Logger mLogger = Logger.getLogger(DeviceManager.class);
 
     private String deviceUrl;
     private DinamicModelProvider modelProvider;
@@ -35,7 +34,7 @@ public class DeviceManager {
 
 
     public void RegisterModel(Device device) {
-        Map<Integer, LinkedList<ResourceModel>> newModels = new HashMap<Integer, LinkedList<ResourceModel>>();
+        Map<Integer, LinkedList<ResourceModel>> newModels = new HashMap<>();
         LinkedList<ResourceModel> resources;
 
         String deviceLabel = device.label;
@@ -94,7 +93,7 @@ public class DeviceManager {
 
         } catch (Exception e) {
             e.printStackTrace();
-            System.out.println(e);
+            mLogger.error(e);
         }
         return null;
     }
@@ -103,7 +102,7 @@ public class DeviceManager {
         RegisterModel(device);
         Devices.put(device.deviceId, registration);
         Lwm2mDevices.put(lwm2mId, device.deviceId);
-        System.out.println(device.deviceId);
+        mLogger.debug(device.deviceId);
     }
 
     public Registration getDeviceRegistration(String id) {

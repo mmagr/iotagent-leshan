@@ -3,11 +3,15 @@ package org.cpqd.iotagent;
 import com.mashape.unirest.http.HttpResponse;
 import com.mashape.unirest.http.JsonNode;
 import com.mashape.unirest.http.Unirest;
+import org.apache.log4j.Logger;
 import org.json.JSONArray;
 import org.json.JSONObject;
 
 import java.io.InputStream;
-import java.nio.file.*;
+import java.nio.file.FileSystems;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.StandardCopyOption;
 import java.util.NoSuchElementException;
 
 /**
@@ -15,6 +19,7 @@ import java.util.NoSuchElementException;
  */
 
 public class ImageDownloader {
+    private Logger mLogger = Logger.getLogger(ImageDownloader.class);
 
     private String imageUrl;
 
@@ -65,7 +70,7 @@ public class ImageDownloader {
 
         } catch (Exception e) {
             e.printStackTrace();
-            System.out.println(e);
+            mLogger.error(e);
         }
         throw new NoSuchElementException("Image not on Database");
     }
@@ -84,7 +89,7 @@ public class ImageDownloader {
             Files.copy(in, path, StandardCopyOption.REPLACE_EXISTING);
         } catch (Exception e) {
             e.printStackTrace();
-            System.out.println(e);
+            mLogger.error(e);
         }
     }
 

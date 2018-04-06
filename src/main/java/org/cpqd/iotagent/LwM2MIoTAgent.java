@@ -1,26 +1,30 @@
 package org.cpqd.iotagent;
-import org.cpqd.iotagent.kafka.KafkaHandler;
+import org.apache.log4j.Logger;
 
 public class LwM2MIoTAgent {
 
     public static void main(String[] args) {
+        Logger logger = Logger.getLogger(LwM2MIoTAgent.class);
+
+        logger.info("Starting LwM2M IoTAgent...");
 
         String imageManagerUrl = "http://localhost:5000";
         String deviceManagerUrl = "http://localhost:5001";
 
+        LwM2mAgent agent = new LwM2mAgent(deviceManagerUrl, imageManagerUrl);
+        agent.configureCallbacks();
 
-        KafkaHandler kafkaHandler = new KafkaHandler();
-        LwM2mAgent agent = new LwM2mAgent(kafkaHandler, deviceManagerUrl, imageManagerUrl);
-
-        kafkaHandler.RegisterCallback("update", agent::update);
-        kafkaHandler.RegisterCallback("actuate", agent::actuate);
-        kafkaHandler.RegisterCallback("create", agent::create);
-
-
-        // Run Handlers
-        (new Thread(kafkaHandler)).start();
         (new Thread(agent)).start();
 
-    }
+        while (true) {
+            logger.info("Running LwM2M IoTAgent");
 
+            try {
+                Thread.sleep(10000);
+            } catch (InterruptedException exception) {
+                logger.error("Exception: " + exception.toString());
+            }
+        }
+    }
 }
+

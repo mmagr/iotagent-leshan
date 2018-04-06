@@ -2,7 +2,6 @@ package org.cpqd.iotagent;
 
 import com.auth0.jwt.JWT;
 import com.auth0.jwt.algorithms.Algorithm;
-import com.auth0.jwt.exceptions.JWTCreationException;
 
 import java.io.UnsupportedEncodingException;
 import java.util.Date;
@@ -32,8 +31,6 @@ public class TenancyManager {
                     .sign(algorithm);
         } catch (UnsupportedEncodingException exception) {
             //UTF-8 encoding not supported
-        } catch (JWTCreationException exception) {
-            //Invalid Signing configuration / Couldn't convert Claims.
         }
         return token;
     }
